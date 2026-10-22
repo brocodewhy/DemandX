@@ -455,6 +455,43 @@ function TextInput({ label, value, onChange, type = 'text', min, max, helper }) 
 function ProductInput({ label, value, onChange, options, helper }) { const id = React.useId(); return <label className="field"><span>{label}</span><input list={id} value={value} onChange={e => onChange(e.target.value)} placeholder="Type or choose a product" autoComplete="off"/><datalist id={id}>{(options || []).map(v => <option key={String(v)} value={String(v)}/>)}</datalist>{helper && <small>{helper}</small>}</label>; }
 function DatasetPicker({ datasets, activeDataset, setActiveDataset, disabled = false }) { return <div className="dataset-picker"><FileSpreadsheet size={16}/><select aria-label="Active dataset" value={activeDataset?.id || ''} disabled={disabled} onChange={e => setActiveDataset(datasets.find(d => d.id === e.target.value) || null)}><option value="">Select dataset…</option>{datasets.map(d => <option value={d.id} key={d.id}>{d.filename}</option>)}</select><ChevronDown size={14}/></div>; }
 
+const parcelBurstBits = [
+  { x: -92, y: -64, r: -28, glyph: '✦' }, { x: -58, y: -104, r: 24, glyph: '•' },
+  { x: -18, y: -122, r: -18, glyph: '✧' }, { x: 34, y: -112, r: 32, glyph: '•' },
+  { x: 83, y: -78, r: 18, glyph: '✦' }, { x: 106, y: -24, r: -34, glyph: '•' },
+  { x: 91, y: 43, r: 24, glyph: '✧' }, { x: 48, y: 83, r: -24, glyph: '•' },
+  { x: -18, y: 92, r: 34, glyph: '✦' }, { x: -76, y: 54, r: -18, glyph: '•' },
+  { x: -108, y: 2, r: 26, glyph: '✧' }, { x: 8, y: 42, r: 180, glyph: '📦' },
+];
+function DashboardParcelPlayground({ onExplore }) {
+  const reduceMotion = useReducedMotion();
+  const [burst, setBurst] = useState(false);
+  const [count, setCount] = useState(0);
+  const timerRef = useRef(null);
+  useEffect(() => () => window.clearTimeout(timerRef.current), []);
+  const popBoxes = () => {
+    setCount(v => v + 1);
+    setBurst(true);
+    window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => setBurst(false), reduceMotion ? 120 : 1150);
+  };
+  return <section className={`dx-parcel-playground ${burst ? 'is-bursting' : ''}`} aria-label="Interactive parcel animation">
+    <div className="dx-parcel-copy"><span className="dx-parcel-eyebrow"><span className="dx-parcel-live-dot"/> A LITTLE DASHBOARD MAGIC</span><h2>Make demand <em>move.</em></h2><p>Tap the parcel stack and watch your orders scatter. Your data stays right where it is.</p><div className="dx-parcel-actions"><button type="button" className="dx-parcel-cta" onClick={popBoxes}><span>{burst ? 'Again!' : 'Pop the boxes'}</span><span aria-hidden="true">✦</span></button><button type="button" className="dx-parcel-text-action" onClick={onExplore}>Explore insights <span aria-hidden="true">↗</span></button></div></div>
+    <div className="dx-parcel-stage">
+      <div className="dx-parcel-orbit dx-parcel-orbit-one"/><div className="dx-parcel-orbit dx-parcel-orbit-two"/>
+      <div className="dx-parcel-confetti" aria-hidden="true">{!reduceMotion && burst && parcelBurstBits.map((bit, i) => <motion.span key={`${count}-${i}`} initial={{ x: 0, y: 0, opacity: 1, scale: .4, rotate: 0 }} animate={{ x: bit.x, y: bit.y, opacity: 0, scale: bit.glyph === '📦' ? 1.1 : 1.6, rotate: bit.r }} transition={{ duration: .95, ease: 'easeOut' }} className={`dx-burst-bit dx-burst-bit-${i % 4}`}>{bit.glyph}</motion.span>)}</div>
+      <motion.button type="button" className={`dx-parcel-stack ${burst ? 'stack-burst' : ''}`} onClick={popBoxes} aria-label="Pop the stacked parcel boxes" whileHover={reduceMotion ? undefined : { y: -5, rotate: -2, scale: 1.035 }} whileTap={reduceMotion ? undefined : { scale: .94 }}>
+        <motion.span className="dx-parcel-box box-back" animate={burst && !reduceMotion ? { x: 76, y: -42, rotate: 24, opacity: 0 } : { x: 0, y: 0, rotate: 8, opacity: 1 }} transition={{ duration: .42, ease: 'backOut' }}><i/><b/></motion.span>
+        <motion.span className="dx-parcel-box box-mid" animate={burst && !reduceMotion ? { x: -82, y: -20, rotate: -27, opacity: 0 } : { x: 0, y: 0, rotate: -7, opacity: 1 }} transition={{ duration: .4, ease: 'backOut', delay: .025 }}><i/><b/></motion.span>
+        <motion.span className="dx-parcel-box box-front" animate={burst && !reduceMotion ? { y: 68, rotate: 18, opacity: 0, scale: .8 } : { y: 0, rotate: 0, opacity: 1, scale: 1 }} transition={{ duration: .42, ease: 'backOut', delay: .05 }}><i/><b/></motion.span>
+        <span className="dx-parcel-tap-hint">{burst ? '✨ NICE!' : 'TAP TO BURST'}</span>
+      </motion.button>
+      <div className="dx-parcel-shadow"/>
+      <div className="dx-parcel-stat"><span>📦</span><div><strong>{String(count).padStart(2, '0')}</strong><small>parcel pops</small></div></div>
+    </div>
+  </section>;
+}
+
 function Overview({ datasets, activeDataset, setActiveDataset, refresh, notify, setPage, user, datasetsLoading, datasetsError }) {
   const chartMotion = useChartMotion();
   const [history, setHistory] = useState([]); const [analytics, setAnalytics] = useState(null); const [profile, setProfile] = useState(null); const [busy, setBusy] = useState(false);
@@ -462,6 +499,7 @@ function Overview({ datasets, activeDataset, setActiveDataset, refresh, notify, 
   useEffect(() => { if (!activeDataset) { setAnalytics(null); setProfile(null); return; } setBusy(true); Promise.all([api(`/api/datasets/${activeDataset.id}`), activeDataset.date_col && activeDataset.target_col ? api(`/api/datasets/${activeDataset.id}/analytics`, { method: 'POST', body: JSON.stringify({ date_col: activeDataset.date_col, target_col: activeDataset.target_col, product_col: activeDataset.product_col }) }).catch(() => null) : Promise.resolve(null)]).then(([p,a]) => { setProfile(p); setAnalytics(a); }).catch(e => notify(e.message,'error')).finally(() => setBusy(false)); }, [activeDataset?.id]);
   const daily = analytics?.daily?.slice(-21) || [];
   return <><PageHeader eyebrow="YOUR COMMAND CENTER" title={`Good to see you, ${user.name?.split(' ')[0] || 'there'}.`} description="Here’s the latest from your demand workspace." actions={<Button onClick={() => setPage('data')} icon={Plus}>Add dataset</Button>}/>
+    <DashboardParcelPlayground onExplore={() => setPage('insights')}/>
     {datasetsLoading ? <DashboardSkeleton/> : datasetsError ? <section className="panel large-empty"><EmptyState icon={Database} title="Workspace data unavailable" description={datasetsError} action="Retry dataset loading" onAction={refresh}/></section> : !datasets.length ? <div className="welcome-banner"><div className="welcome-orb"><Sparkles size={23}/></div><div className="welcome-copy"><div className="banner-eyebrow">A CLEARER VIEW STARTS HERE</div><h2>Bring your order data into focus.</h2><p>Upload a CSV or Excel file to uncover patterns, evaluate a model, and forecast demand for a product on a specific date.</p><Button onClick={() => setPage('data')} icon={CloudUpload}>Upload your first dataset</Button></div><div className="banner-illustration"><div className="illustration-grid"><span/><span/><span/><span/><span/><span/><span/><span/><span/><span/><span/><span/></div><div className="illustration-card"><div className="illustration-card-head"><span/><span/><span/></div><div className="illustration-bars"><i/><i/><i/><i/><i/><i/><i/></div><div className="illustration-line"><svg viewBox="0 0 180 60" preserveAspectRatio="none"><path d="M2 48 C22 42, 25 30, 45 34 S75 50, 93 25 S120 28, 138 12 S160 20, 178 4" fill="none" stroke="#76d8a4" strokeWidth="3" strokeLinecap="round"/></svg></div></div></div></div> : <>
       <div className="context-bar"><div className="context-left"><span className="live-dot"/><span>ACTIVE DATASET</span><strong>{activeDataset?.filename || 'Choose a dataset'}</strong></div><DatasetPicker datasets={datasets} activeDataset={activeDataset} setActiveDataset={setActiveDataset}/></div>
       <div className="stats-grid"><StatCard label="Rows in dataset" value={profile ? fmt(profile.rows) : '—'} note={profile ? `${profile.columns_count} columns available` : 'Select a dataset'} icon={Database} tint="mint"/><StatCard label="Total demand" value={analytics ? compact(analytics.summary.total_demand) : '—'} note="Sum of selected demand column" icon={Package} tint="blue"/><StatCard label="Average demand" value={analytics ? fmt(analytics.summary.average_demand) : '—'} note="Per observed record" icon={Gauge} tint="gold"/><StatCard label="Saved forecasts" value={fmt(history.length)} note="Across your workspace" icon={Target} tint="purple"/></div>
