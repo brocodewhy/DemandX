@@ -26,7 +26,7 @@ from .data_cleaner import clean_dataset
 APP_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(APP_DIR / ".env")
 
-# Use writable temporary storage on Vercel.
+# Vercel's filesystem is read-only except for /tmp.
 _storage_override = os.getenv("DEMANDX_STORAGE", "").strip()
 
 if _storage_override:
