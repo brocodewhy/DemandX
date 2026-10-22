@@ -556,8 +556,22 @@ function DaywisePrediction({ datasets, activeDataset, setActiveDataset, notify, 
   const [productOptions, setProductOptions] = useState([]);
   useEffect(() => {
     if (!profile) return;
-    setDateCol(profile.date_col || ''); setTargetCol(profile.target_col || '');
-    setProductCol(profile.product_col || ''); setProductValue(''); setResult(null); setForecastDate(''); setError('');
+    const available = (profile.columns || []).map(c => typeof c === 'string' ? c : c.name);
+    const normalized = name => String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    const orderId = available.find(c => ['order_id', 'orderid', 'order_number', 'order_no', 'transaction_id', 'transaction_number'].includes(normalized(c)));
+    const quantityTarget = available.find(c => ['quantity', 'qty', 'units_sold', 'unit_count', 'order_count', 'orders', 'demand'].includes(normalized(c)));
+    const date = available.find(c => ['order_date', 'date', 'order_datetime', 'timestamp'].includes(normalized(c))) || profile.date_col || '';
+    // Existing datasets can have stale auto-detected metadata (e.g. order_total).
+    // If there is no explicit quantity/count measure, count order IDs instead.
+    const target = quantityTarget || orderId || profile.target_col || '';
+    setDateCol(date);
+    setTargetCol(target);
+    setProductCol(quantityTarget ? (profile.product_col || '') : '');
+    setProductValue('');
+    setProductOptions([]);
+    setResult(null);
+    setForecastDate('');
+    setError('');
   }, [profile?.id]);
   useEffect(() => {
     if (!profile || !productCol) { setProductOptions([]); return; }
