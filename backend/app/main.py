@@ -238,10 +238,27 @@ def infer_column(columns, hints):
     return None
 
 
+def normalized_column_name(column: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(column).lower()).strip("_")
+
+
+def is_order_id_column(column: str) -> bool:
+    """True when a column identifies orders rather than measuring demand."""
+    normalized = normalized_column_name(column)
+    return normalized in {"order_id", "orderid", "order_number", "order_no", "transaction_id", "transaction_number"}
+
+
 def is_order_count_column(column: str) -> bool:
-    normalized = re.sub(r"[^a-z0-9]+", "_", str(column).lower()).strip("_")
+    normalized = normalized_column_name(column)
     parts = set(normalized.split("_"))
-    return "orders" in parts or "count" in parts or "transactions" in parts or "order_count" in normalized or "transaction_count" in normalized
+    return (
+        is_order_id_column(column)
+        or "orders" in parts
+        or "count" in parts
+        or "transactions" in parts
+        or "order_count" in normalized
+        or "transaction_count" in normalized
+    )
 
 
 def detect_columns(df: pd.DataFrame) -> dict:
@@ -280,8 +297,13 @@ def daily_series(df: pd.DataFrame, date_col: str, target_col: str, product_col: 
     if product_col and product_value is not None:
         work = work[work[product_col].astype(str) == str(product_value)]
     if work.empty: raise HTTPException(status_code=400, detail="No usable rows match the selected date, demand, and product filters.")
-    # Sum numeric demand per day; this is the appropriate default for units/sales columns.
-    grouped = work.groupby(work[date_col].dt.floor("D"))[target_col].sum().sort_index()
+    # An order ID identifies a row/order; it is not a numeric demand value.
+    # For order-level datasets, count rows per day instead of summing IDs.
+    if is_order_id_column(target_col):
+        grouped = work.groupby(work[date_col].dt.floor("D")).size().astype(float).sort_index()
+    else:
+        # For quantity/sales columns, sum the numeric measure per day.
+        grouped = work.groupby(work[date_col].dt.floor("D"))[target_col].sum().sort_index()
     idx = pd.date_range(grouped.index.min(), grouped.index.max(), freq="D")
     series = grouped.reindex(idx, fill_value=0.0).astype(float)
     series.index.name = "date"
@@ -466,10 +488,16 @@ def analytics(dataset_id: str, request: AnalyticsRequest, user=Depends(current_u
     require_columns(df, request.date_col, request.target_col, request.product_col)
     work = df.drop_duplicates().copy()
     work[request.date_col] = pd.to_datetime(work[request.date_col], errors="coerce")
-    work[request.target_col] = pd.to_numeric(work[request.target_col], errors="coerce").replace([np.inf, -np.inf], np.nan)
-    work = work.dropna(subset=[request.date_col, request.target_col])
-    if work.empty: raise HTTPException(status_code=400, detail="No valid date and numeric demand rows found.")
-    daily = work.groupby(work[request.date_col].dt.floor("D"))[request.target_col].sum().sort_index()
+    if not is_order_id_column(request.target_col):
+        work[request.target_col] = pd.to_numeric(work[request.target_col], errors="coerce").replace([np.inf, -np.inf], np.nan)
+        work = work.dropna(subset=[request.date_col, request.target_col])
+    else:
+        work = work.dropna(subset=[request.date_col, request.target_col])
+    if work.empty: raise HTTPException(status_code=400, detail="No valid date and demand rows found.")
+    if is_order_id_column(request.target_col):
+        daily = work.groupby(work[request.date_col].dt.floor("D")).size().astype(float).sort_index()
+    else:
+        daily = work.groupby(work[request.date_col].dt.floor("D"))[request.target_col].sum().sort_index()
     daily = daily.reindex(pd.date_range(daily.index.min(), daily.index.max(), freq="D"), fill_value=0.0)
     weekday_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     weekday = daily.groupby(daily.index.day_name()).mean()
