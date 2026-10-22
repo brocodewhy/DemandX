@@ -274,8 +274,20 @@ def detect_columns(df: pd.DataFrame) -> dict:
             parsed = pd.to_datetime(df[c], errors="coerce")
             if parsed.notna().mean() >= 0.85 and not pd.api.types.is_numeric_dtype(df[c]):
                 date_col = c; break
-    target_col = infer_column(df.columns, ["demand", "orders", "order_count", "quantity", "qty", "units_sold", "sales", "units", "target"])
-    if target_col and not pd.to_numeric(df[target_col], errors="coerce").notna().any(): target_col = None
+    # Prefer an actual demand/quantity measure when one exists.
+    target_col = infer_column(
+        df.columns,
+        ["demand", "quantity", "qty", "units_sold", "units", "order_count", "orders", "sales", "target"]
+    )
+    if target_col and not pd.to_numeric(df[target_col], errors="coerce").notna().any():
+        target_col = None
+
+    # Order-level datasets often have no quantity column. In that case, use
+    # order_id as a signal to COUNT rows per day (never sum the ID values).
+    if target_col is None:
+        target_col = next((c for c in df.columns if is_order_id_column(c)), None)
+
+    # Last resort: use a numeric column, if no demand/order field was found.
     if target_col is None:
         numeric = [c for c in df.select_dtypes(include=np.number).columns if c != date_col]
         target_col = numeric[0] if numeric else None
@@ -292,7 +304,10 @@ def daily_series(df: pd.DataFrame, date_col: str, target_col: str, product_col: 
     require_columns(df, date_col, target_col, product_col)
     work = df.drop_duplicates().copy()
     work[date_col] = pd.to_datetime(work[date_col], errors="coerce")
-    work[target_col] = pd.to_numeric(work[target_col], errors="coerce").replace([np.inf, -np.inf], np.nan)
+    # IDs may be strings or numbers. They identify an order; they are not a
+    # quantity to sum or a numeric target to coerce.
+    if not is_order_id_column(target_col):
+        work[target_col] = pd.to_numeric(work[target_col], errors="coerce").replace([np.inf, -np.inf], np.nan)
     work = work.dropna(subset=[date_col, target_col])
     if product_col and product_value is not None:
         work = work[work[product_col].astype(str) == str(product_value)]
@@ -549,8 +564,11 @@ def forecast(dataset_id: str, request: ForecastRequest, user=Depends(current_use
     model.fit(featured.drop(columns="y"), featured["y"])
     working = series.copy()
     forecast_rows = []
+    # Return the entire Monday-Sunday week containing the selected date so
+    # the frontend can draw a complete seven-day forecast chart.
+    week_end = request.forecast_date + timedelta(days=(6 - request.forecast_date.weekday()))
     cursor = last_date + timedelta(days=1)
-    while cursor <= request.forecast_date:
+    while cursor <= week_end:
         # Build features only from observations available before the prediction date.
         history = working.copy()
         row = {"dow": cursor.weekday(), "day": cursor.day, "month": cursor.month, "year": cursor.year, "is_weekend": int(cursor.weekday() >= 5)}
@@ -563,7 +581,12 @@ def forecast(dataset_id: str, request: ForecastRequest, user=Depends(current_use
         working.loc[pd.Timestamp(cursor)] = pred
         forecast_rows.append({"date": cursor.isoformat(), "demand": round(pred, 2), "measure": request.target_col})
         cursor += timedelta(days=1)
-    chosen = forecast_rows[-1]
+    chosen = next(
+        (row for row in forecast_rows if row["date"][:10] == request.forecast_date.isoformat()),
+        None,
+    )
+    if chosen is None:
+        raise HTTPException(status_code=500, detail="Could not find the forecast for the selected date.")
     history_path = user_root(user) / "history.json"
     try: history = json.loads(history_path.read_text(encoding="utf-8")) if history_path.exists() else []
     except Exception: history = []
