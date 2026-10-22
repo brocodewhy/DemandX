@@ -30,7 +30,14 @@ STORAGE.mkdir(parents=True, exist_ok=True)
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 
 app = FastAPI(title="DemandX API", version="2.0.0")
-origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if x.strip()]
+origins = [
+    x.strip()
+    for x in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,https://demand-x-snowy.vercel.app"
+    ).split(",")
+    if x.strip()
+]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 class CleanRequest(BaseModel):
