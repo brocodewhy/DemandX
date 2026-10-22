@@ -475,78 +475,141 @@ function DaywisePrediction({ datasets, activeDataset, setActiveDataset, notify, 
   const profile = useDatasetProfile(activeDataset, notify);
   const [dateCol, setDateCol] = useState('');
   const [targetCol, setTargetCol] = useState('');
-  const [productCol, setProductCol] = useState('');
-  const [productValue, setProductValue] = useState('');
   const [forecastDate, setForecastDate] = useState('');
-  const [model, setModel] = useState('gradient_boosting');
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [productOptions, setProductOptions] = useState([]);
+
   useEffect(() => {
     if (!profile) return;
-    setDateCol(profile.date_col || ''); setTargetCol(profile.target_col || '');
-    setProductCol(profile.product_col || ''); setProductValue(''); setResult(null); setForecastDate(''); setError('');
+    const names = (profile.columns || []).map(c => c.name);
+    const date = profile.date_col || (names.includes('order_date') ? 'order_date' : names.find(c => /date|timestamp|datetime/i.test(c)) || '');
+    // Order IDs are identifiers, not demand values. For order-level datasets,
+    // the backend should count rows/orders per day rather than sum these IDs.
+    const target = names.includes('order_id') ? 'order_id' : (profile.target_col || names.find(c => /orders|order_count|quantity|qty|units_sold|demand/i.test(c)) || '');
+    setDateCol(date);
+    setTargetCol(target);
+    setResult(null);
+    setError('');
+    setForecastDate('');
   }, [profile?.id]);
-  useEffect(() => {
-    if (!profile || !productCol) { setProductOptions([]); return; }
-    const col = profile.columns?.find(c => c.name === productCol);
-    const vals = col?.values || [...new Set((profile.preview || []).map(r => r[productCol]).filter(v => v !== null && v !== undefined).map(String))];
-    setProductOptions(vals.map(String));
-    if (vals.length && !vals.map(String).includes(productValue)) setProductValue(String(vals[0]));
-  }, [productCol, profile?.id]);
-  const columns = profile?.columns?.map(c => c.name) || [];
-  const run = async (requestedDate = forecastDate) => {
-    if (runInFlight.current) return;
-    if (!activeDataset) return notify('Upload or select a dataset first.', 'error');
-    if (!dateCol || !targetCol || !requestedDate) return notify('Choose the date, demand column, and target day.', 'error');
-    const parsedDate = new Date(`${requestedDate}T00:00:00Z`);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate) || Number.isNaN(parsedDate.valueOf()) || parsedDate.toISOString().slice(0, 10) !== requestedDate) {
-      setError('Choose a valid calendar date.');
-      return;
-    }
-    if (productCol && !productValue.trim()) return notify('Choose a product or category.', 'error');
-    runInFlight.current = true;
-    setBusy(true); setResult(null); setError('');
-    try {
-      const data = await api(`/api/datasets/${activeDataset.id}/forecast`, { method: 'POST', body: JSON.stringify({ date_col: dateCol, target_col: targetCol, product_col: productCol || null, product_value: productCol ? productValue : null, forecast_date: requestedDate, model }) });
-      setResult(data); notify('Day-wise prediction is ready.');
-    } catch (e) { setError(e.message); notify(e.message, 'error'); } finally { runInFlight.current = false; setBusy(false); }
-  };
+
   const minimumDate = offsetDate(profile?.date_max, 1);
   const maximumDate = offsetDate(profile?.date_max, 180);
-  const datePretty = result ? new Date(`${result.forecast_date}T12:00:00`).toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
+
+  const run = async (requestedDate) => {
+    if (runInFlight.current) return;
+    if (!activeDataset) return;
+    if (!dateCol || !targetCol) {
+      setError('This dataset needs a date column and an order or quantity column.');
+      return;
+    }
+    if (!requestedDate) {
+      setResult(null);
+      setError('');
+      return;
+    }
+    if (minimumDate && requestedDate < minimumDate) {
+      setError(`Choose a date after the latest date in your data (${profile?.date_max}).`);
+      return;
+    }
+    if (maximumDate && requestedDate > maximumDate) {
+      setError('Choose a date within the next 180 days.');
+      return;
+    }
+
+    runInFlight.current = true;
+    setBusy(true);
+    setResult(null);
+    setError('');
+    try {
+      const data = await api(`/api/datasets/${activeDataset.id}/forecast`, {
+        method: 'POST',
+        body: JSON.stringify({
+          date_col: dateCol,
+          target_col: targetCol,
+          product_col: null,
+          product_value: null,
+          forecast_date: requestedDate,
+          model: 'gradient_boosting'
+        })
+      });
+      setResult(data);
+    } catch (e) {
+      setError(e.message || 'Could not generate the forecast.');
+    } finally {
+      runInFlight.current = false;
+      setBusy(false);
+    }
+  };
+
+  const weeklyForecast = useMemo(() => {
+    if (!result?.forecast_path?.length || !result?.forecast_date) return [];
+    const selected = new Date(`${result.forecast_date}T12:00:00`);
+    const day = selected.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const monday = new Date(selected);
+    monday.setDate(selected.getDate() + mondayOffset);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const start = monday.toISOString().slice(0, 10);
+    const end = sunday.toISOString().slice(0, 10);
+    return result.forecast_path
+      .filter(item => item.date >= start && item.date <= end)
+      .map(item => ({ ...item, day: new Date(`${item.date}T12:00:00`).toLocaleDateString('en', { weekday: 'short' }) }));
+  }, [result]);
+
+  const demandLevel = useMemo(() => {
+    if (!result || !weeklyForecast.length) return null;
+    const history = weeklyForecast.map(x => Number(x.demand)).filter(Number.isFinite);
+    const average = history.length ? history.reduce((a, b) => a + b, 0) / history.length : Number(result.prediction) || 0;
+    // This is a simple relative label, not a calibrated probability.
+    return Number(result.prediction) > average * 1.2 ? 'High demand'
+      : Number(result.prediction) < average * 0.8 ? 'Low demand' : 'Normal demand';
+  }, [result, weeklyForecast]);
+
   return <div className="daywise-page">
-    <PageHeader eyebrow="SINGLE-DAY FORECAST" title="One day. One clear estimate." description="Zoom in on the exact day you need to plan for." actions={<DatasetPicker datasets={datasets} activeDataset={activeDataset} setActiveDataset={setActiveDataset} disabled={busy}/>}/>
-    {!activeDataset ? <section className="panel large-empty"><EmptyState icon={CalendarDays} title="Start with your order history" description="Upload a dataset with dates and numeric demand to predict a specific day." action="Open data workspace" onAction={() => setPage('data')}/></section> : <>
-      <section className="daywise-hero">
-        <div className="daywise-aurora aurora-a"/><div className="daywise-aurora aurora-b"/><div className="daywise-orbit orbit-one"/><div className="daywise-orbit orbit-two"/>
-        <motion.div className="daywise-hero-copy" initial={{opacity:0,y:18}} animate={{opacity:1,y:0}} transition={{duration:.65,ease:[.22,1,.36,1]}}>
-          <div className="daywise-kicker"><span className="live-pulse"/> PRECISION DAY PLANNER</div>
-          <h2>Demand, <span>day by day.</span></h2>
-          <p>Pick a product. Set the date. Get a focused estimate backed by your own history.</p>
-          <div className="daywise-mini-stats"><div><strong>{profile?.date_min ? dateLabel(profile.date_min) : '—'}</strong><span>History starts</span></div><i/><div><strong>{profile?.date_max ? dateLabel(profile.date_max) : '—'}</strong><span>Latest history</span></div><i/><div><strong>{profile?.rows ? fmt(profile.rows) : '—'}</strong><span>Source rows</span></div></div>
-        </motion.div>
-        <motion.div className="daywise-orbital-art" initial={{opacity:0,scale:.75,rotate:-12}} animate={{opacity:1,scale:1,rotate:0}} transition={{duration:.9,ease:'easeOut',delay:.12}}>
-          <div className="orbital-ring ring-outer"/><div className="orbital-ring ring-inner"/><div className="orbital-core"><CalendarDays size={34}/><span>DAY</span></div><span className="orbit-chip chip-top"><TrendingUp size={14}/> Demand signal</span><span className="orbit-chip chip-bottom"><Sparkles size={14}/> ML forecast</span><span className="orbit-dot dot-a"/><span className="orbit-dot dot-b"/>
-        </motion.div>
+    <PageHeader eyebrow="DAILY ORDER FORECAST" title="How busy will this day be?" description="Choose a date to estimate the number of orders and view the forecast for that week." actions={<DatasetPicker datasets={datasets} activeDataset={activeDataset} setActiveDataset={setActiveDataset} disabled={busy}/>}/>
+    {!activeDataset ? <section className="panel large-empty"><EmptyState icon={CalendarDays} title="Start with your order history" description="Upload your order dataset first." action="Open data workspace" onAction={() => setPage('data')}/></section> : <>
+      <section className="panel daywise-config" style={{ maxWidth: 720, margin: '0 auto 22px' }}>
+        <div className="daywise-section-head"><div className="daywise-step"><CalendarDays size={18}/></div><div><h3>Choose a date</h3><p>DemandX will estimate orders using your saved history.</p></div></div>
+        <div style={{ maxWidth: 360 }}>
+          <TextInput label="Forecast date" type="date" value={forecastDate} min={minimumDate} max={maximumDate} onChange={value => { setForecastDate(value); setResult(null); setError(''); if (value) run(value); }} helper="Select a future date to estimate order demand." />
+        </div>
+        {busy && <div className="daywise-wait" role="status"><LoaderCircle className="spin" size={18}/> Estimating orders…</div>}
+        {error && <div className="daywise-error" role="alert"><h3>Forecast unavailable</h3><p>{error}</p></div>}
       </section>
-      <div className="daywise-workspace">
-        <motion.section className="panel daywise-config" initial={{opacity:0,y:22}} animate={{opacity:1,y:0}} transition={{duration:.5,delay:.08}}>
-          <div className="daywise-section-head"><div className="daywise-step">01</div><div><h3>Build your prediction</h3><p>Choose the signal and target day.</p></div><span className="secure-chip"><ShieldCheck size={13}/> Your data</span></div>
-          <motion.div className="daywise-fields" aria-busy={busy} inert={busy} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .34, delay: .12, ease: motionEase }}><Select label="Date column" value={dateCol} onChange={value=>{setDateCol(value);setResult(null);}} options={columns}/><Select label="Demand / quantity" value={targetCol} onChange={value=>{setTargetCol(value);setResult(null);}} options={columns}/><Select label="Product or category" value={productCol} onChange={v=>{setProductCol(v);setProductValue('');setResult(null);}} options={columns} placeholder="All products combined"/>{productCol && <Select label="Select product" value={productValue} onChange={value=>{setProductValue(value);setResult(null);}} options={productOptions} placeholder="Choose product"/>}<TextInput label="Prediction date" type="date" value={forecastDate} onChange={value=>{setForecastDate(value);if(value)run(value);else{setResult(null);setError('');}}} min={minimumDate} max={maximumDate} helper="Select a date after history and within the next 180 days; a forecast runs when selected."/><Select label="Forecast model" value={model} onChange={value=>{setModel(value);setResult(null);}} options={[{value:'gradient_boosting',label:'Gradient Boosting'},{value:'random_forest',label:'Random Forest'}]}/></motion.div>
-          <motion.button className="daywise-run" whileHover={{scale:1.015,y:-2}} whileTap={{scale:.985}} onClick={run} disabled={busy}>{busy ? <><LoaderCircle className="spin" size={17}/> Reading demand patterns…</> : <><WandSparkles size={17}/> Predict this day <ArrowRight size={17}/></>}</motion.button>
-          <div className="daywise-footnote"><ShieldCheck size={14}/> Estimates are generated from the selected dataset and model.</div>
+
+      {result && !busy && <div className="daywise-workspace" style={{ gridTemplateColumns: '1fr' }}>
+        <motion.section className="panel daywise-result" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}}>
+          <div className="output-overline"><span className="live-pulse"/> DAILY FORECAST</div>
+          <div className="output-date">{new Date(`${result.forecast_date}T12:00:00`).toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</div>
+          <div className="daywise-number-wrap">
+            <AnimatedValue className="daywise-number" value={fmtCount(result.prediction)}/>
+            <span>expected orders</span>
+            <div className="number-glow"/>
+          </div>
+          {demandLevel && <div className="output-product"><strong>{demandLevel}</strong> compared with the forecast days available in this week.</div>}
+          <p className="forecast-caveat">This is an estimate based on historical orders, not a guarantee. The weekly chart shows forecast dates available through your selected date.</p>
         </motion.section>
-        <motion.section className="daywise-output" initial={{opacity:0,y:22}} animate={{opacity:1,y:0}} transition={{duration:.5,delay:.16}}>
-          <AnimatePresence mode="wait" initial={false}>
-          {busy ? <motion.div key="loading" className="daywise-wait" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: .2 }}><PredictionLoader label="Analyzing demand patterns"/><h3>Reading the demand rhythm</h3><p>Testing historical dates and calculating the estimate.</p><div className="spectrum-loader"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></div></motion.div> : result ? <motion.div key={`result-${result.forecast_date}`} className="daywise-result" initial={{opacity:0,scale:.96}} animate={{opacity:1,scale:1}} exit={{ opacity: 0, y: -6 }} transition={{duration:.3,ease:'easeOut'}}>
-            <div className="output-overline"><span className="live-pulse"/> {result.prediction_type === 'forecast' ? 'FORECAST READY' : 'PREDICTION READY'} <span className="output-model">{model === 'gradient_boosting' ? 'Gradient Boosting' : 'Random Forest'}</span></div><div className="output-date">{datePretty}</div><div className="daywise-number-wrap"><AnimatedValue className="daywise-number" value={formatMeasure(result.prediction,result.measure)}/><span>forecast {result.measure}</span><div className="number-glow"/></div><div className="output-product">Forecast for <strong>{result.product}</strong></div><p className="forecast-caveat">This is an estimate, not an actual order count. No calibrated confidence interval is available.</p><div className="output-metrics"><div><span>MAE</span><strong>{fmt(result.evaluation.mae)}</strong><small>Average error</small></div><div><span>RMSE</span><strong>{fmt(result.evaluation.rmse)}</strong><small>Error spread</small></div><div><span>History</span><strong>{fmtCount(result.history_days)}</strong><small>Observed days</small></div></div>
-            <div className="daywise-path-head"><div><strong>Daily path to target</strong><span>How the forecast evolves toward your selected date</span></div><button className="icon-btn" onClick={()=>downloadJSON(result,`demandx-daywise-${result.forecast_date}.json`)} title="Download prediction"><Download size={16}/></button></div><div className="daywise-spark-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={result.forecast_path} margin={{top:10,right:5,left:0,bottom:0}}><defs><linearGradient id="daywiseGlow" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#75efb2" stopOpacity={.42}/><stop offset="100%" stopColor="#75efb2" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="var(--dx-chart-grid)" vertical={false} strokeDasharray="3 4"/><XAxis dataKey="date" tickFormatter={dateLabel} tickLine={false} axisLine={false} tick={{fill:'var(--dx-chart-label)',fontSize:10}} minTickGap={28}/><YAxis tickFormatter={compact} tickLine={false} axisLine={false} tick={{fill:'var(--dx-chart-label)',fontSize:10}} width={42}/><Tooltip content={<ChartTooltip/>}/><Area type="monotone" dataKey="demand" stroke="#77edb2" strokeWidth={2.5} fill="url(#daywiseGlow)" activeDot={{r:5,fill:'#fff',stroke:'#77edb2',strokeWidth:3}} {...chartMotion}/></AreaChart></ResponsiveContainer></div><div className="daywise-output-actions"><Button variant="secondary" icon={Download} onClick={()=>downloadJSON(result,`demandx-daywise-${result.forecast_date}.json`)}>Export result</Button><Button variant="ghost" icon={History} onClick={()=>setPage('history')}>View history <ArrowRight size={14}/></Button></div>
-          </motion.div> : error ? <motion.div key="error" className="daywise-error" role="alert" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: .2 }}><div><X size={20}/></div><h3>Forecast unavailable</h3><p>{error}</p><small>Check the selected columns, available history, product filter, and supported forecast horizon.</small></motion.div> : <motion.div key="empty" className="daywise-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><div className="empty-constellation"><span/><span/><span/><span/><span/><div><CalendarDays size={29}/></div></div><div className="empty-overline">YOUR NEXT DECISION</div><h3>Your day, in focus.</h3><p>Select a supported date to generate a forecast from this dataset. The forecast path and historical validation will appear here.</p><div className="empty-tags"><span><Activity size={13}/> Model validation</span><span><TrendingUp size={13}/> Forecast path</span></div></motion.div>}
-          </AnimatePresence>
-        </motion.section>
-      </div>
+        <ChartCard title="This week's expected orders" subtitle="Estimated orders per day for the selected calendar week">
+          {weeklyForecast.length ? <div className="chart-wrap tall">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyForecast} margin={{top:10,right:10,left:0,bottom:0}}>
+                <CartesianGrid stroke="var(--dx-chart-grid)" vertical={false} strokeDasharray="3 4"/>
+                <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{fill:'var(--dx-chart-label)',fontSize:12}}/>
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{fill:'var(--dx-chart-label)',fontSize:11}}/>
+                <Tooltip formatter={(value) => [`${fmtCount(value)} orders`, 'Expected orders']}/>
+                <Bar dataKey="demand" name="Expected orders" fill="#61c995" radius={[6,6,0,0]} {...chartMotion}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </div> : <p className="forecast-caveat">No weekly forecast points were returned for this date.</p>}
+        </ChartCard>
+        <div className="daywise-output-actions">
+          <Button variant="secondary" icon={Download} onClick={() => downloadJSON(result, `demandx-daywise-${result.forecast_date}.json`)}>Export result</Button>
+          <Button variant="ghost" icon={History} onClick={() => setPage('history')}>View history <ArrowRight size={14}/></Button>
+        </div>
+      </div>}
     </>}
   </div>;
 }
