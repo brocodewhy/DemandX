@@ -25,16 +25,19 @@ from .data_cleaner import clean_dataset
 
 APP_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(APP_DIR / ".env")
-# Vercel's deployed filesystem is read-only except for /tmp.
-# Use temporary storage on Vercel; use the project storage folder locally.
+
+# Use writable temporary storage on Vercel.
 _storage_override = os.getenv("DEMANDX_STORAGE", "").strip()
+
 if _storage_override:
     STORAGE = Path(_storage_override).resolve()
 elif os.getenv("VERCEL"):
     STORAGE = Path("/tmp/demandx-storage")
 else:
     STORAGE = (APP_DIR / "storage").resolve()
+
 STORAGE.mkdir(parents=True, exist_ok=True)
+
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 
 app = FastAPI(title="DemandX API", version="2.0.0")
