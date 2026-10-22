@@ -107,3 +107,88 @@
 @keyframes dx-live-pulse { 0% { box-shadow: 0 0 0 0 rgba(47,157,109,.28); } 70%,100% { box-shadow: 0 0 0 6px rgba(47,157,109,0); } }
 @media (max-width: 720px) { .dx-parcel-playground { grid-template-columns: 1fr; gap: 4px; padding: 22px 20px 12px; } .dx-parcel-copy { max-width: none; } .dx-parcel-stage { min-height: 200px; margin-top: 4px; } .dx-parcel-actions { gap: 13px; } }
 @media (prefers-reduced-motion: reduce) { .dx-parcel-live-dot { animation: none; } .dx-parcel-cta { transition: none; } }
+
+/* DemandX brand finish: clean white welcome, green wordmark, tactile parcels. */
+.dx-intro-screen {
+  color: #20352a;
+  background: radial-gradient(ellipse at 50% 42%, #f3fbf6 0%, #ffffff 58%, #f7fbf8 100%);
+}
+.dx-intro-glow-one { background: #76d8a4; opacity: .23; }
+.dx-intro-glow-two { background: #c4f0d5; opacity: .38; }
+.dx-intro-mark { color: #2f9d6d; text-shadow: 0 12px 36px rgba(47,157,109,.18), 0 0 80px rgba(118,216,164,.22); }
+.dx-intro-wordmark { color: #20352a; }
+.dx-intro-wordmark .dx-intro-x { color: #2f9d6d; text-shadow: none; }
+.dx-intro-tagline { color: #648372; }
+.dx-intro-loader span, .dx-intro-loader span:nth-child(2) { background: #2f9d6d; }
+.dx-intro-status { color: #71877a; }
+
+.dx-welcome-overlay {
+  color: #20352a;
+  background: rgba(255,255,255,.97);
+  backdrop-filter: blur(10px);
+  cursor: default;
+}
+.dx-welcome-grid {
+  opacity: .55;
+  background-image: linear-gradient(rgba(47,157,109,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(47,157,109,.055) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(ellipse at center, #000 0%, transparent 80%);
+}
+.dx-welcome-card {
+  color: #20352a;
+  border: 1px solid #dcebe1;
+  border-radius: 28px;
+  background: linear-gradient(145deg, rgba(255,255,255,.99), rgba(247,252,248,.99));
+  box-shadow: 0 28px 90px rgba(31,91,57,.12), inset 0 1px 0 #fff;
+}
+.dx-welcome-icon {
+  border-color: #c9ead7;
+  color: #fff;
+  background: linear-gradient(145deg, #45b87d, #25865c);
+  box-shadow: 0 12px 34px rgba(47,157,109,.22);
+}
+.dx-welcome-icon span { color: #e5fff0; }
+.dx-welcome-kicker { color: #648372; }
+.dx-welcome-card h1 { color: #20352a; }
+.dx-welcome-card h1 span { color: #2f9d6d; }
+.dx-welcome-card p { color: #657a6d; }
+.dx-welcome-chips span { border-color: #dcebe1; background: #f2faf5; color: #35634a; }
+.dx-welcome-progress { background: #e7f1ea; }
+.dx-welcome-progress span { background: linear-gradient(90deg, #2f9d6d, #8de6bb); }
+.dx-welcome-skip { color: #25865c; }
+.dx-welcome-skip:hover { color: #176744; }
+
+/* More dimensional, cardboard-like parcels with folded flaps and soft shadows. */
+.dx-parcel-box {
+  border: 1px solid rgba(111,75,35,.28);
+  border-radius: 4px;
+  background: linear-gradient(135deg, #e9bd7c 0%, #d6a15c 54%, #bf8745 100%);
+  box-shadow: 0 16px 22px rgba(67,83,53,.2), inset 3px 0 5px rgba(255,255,255,.28), inset -4px 0 7px rgba(112,70,27,.14);
+  transform-style: preserve-3d;
+}
+.dx-parcel-box::before {
+  left: 39%; width: 19%;
+  background: linear-gradient(90deg, #f7e3b7, #e6c17f 48%, #f2d9a5);
+  box-shadow: 1px 0 0 rgba(126,82,36,.13), -1px 0 0 rgba(255,255,255,.25);
+}
+.dx-parcel-box::after {
+  height: 21px;
+  background: linear-gradient(180deg, #f7dca7, #e4b976);
+  border-bottom: 1px solid rgba(131,87,40,.28);
+  box-shadow: inset 0 2px 3px rgba(255,255,255,.28);
+}
+.dx-parcel-box i { left: 44%; width: 8%; background: rgba(255,248,218,.32); }
+.dx-parcel-box b { border-color: #b9884e; background: linear-gradient(145deg, #fff9e8, #e9d8b7); box-shadow: 0 1px 2px rgba(76,49,20,.14); }
+.dx-parcel-box.box-back { background: linear-gradient(135deg, #a6d9b7, #5eaf7f); }
+.dx-parcel-box.box-back::before { background: linear-gradient(90deg, #d7f0de, #b4dfc2 50%, #c9e9d2); }
+.dx-parcel-box.box-back::after { background: linear-gradient(180deg, #d4efd9, #91cba3); }
+.dx-parcel-box.box-mid { background: linear-gradient(135deg, #f3d6a0, #c9934c); }
+.dx-parcel-box.box-front { background: linear-gradient(135deg, #f0c783, #c88f48); }
+
+/* Subtle page entrance polish; no layout or data changes. */
+.page-content > * { animation: dx-content-enter .48s cubic-bezier(.22,1,.36,1) both; }
+.page-content > *:nth-child(2) { animation-delay: .045s; }
+.page-content > *:nth-child(3) { animation-delay: .085s; }
+.page-content > *:nth-child(4) { animation-delay: .12s; }
+@keyframes dx-content-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .page-content > * { animation: none; } }
