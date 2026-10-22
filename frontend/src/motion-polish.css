@@ -1,0 +1,434 @@
+.page-stack {
+  position: relative;
+  min-height: 100%;
+}
+
+.page-route {
+  min-width: 0;
+}
+
+.page-content,
+.page-header,
+.page-content > div > *,
+.page-content .stats-grid .stat-card,
+.stats-grid > *,
+.overview-grid > * {
+  animation: none;
+}
+
+.stat-card-motion {
+  min-width: 0;
+}
+
+.nav-icon {
+  display: grid;
+  flex: 0 0 auto;
+  transition: transform .2s ease, color .2s ease;
+}
+
+.nav-item:hover .nav-icon {
+  transform: translateX(2px);
+}
+
+.nav-item.active {
+  transition: background-color .22s ease, color .22s ease, box-shadow .22s ease;
+}
+
+.nav-item {
+  position: relative;
+  isolation: isolate;
+}
+
+.nav-active-indicator {
+  position: absolute;
+  z-index: -1;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: 4px;
+  background: var(--dx-accent);
+}
+
+.nav-item.active {
+  box-shadow: none;
+}
+
+.login-screen {
+  isolation: isolate;
+}
+
+.login-atmosphere {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.login-grid {
+  position: absolute;
+  inset: -20%;
+  opacity: .12;
+  background-image:
+    linear-gradient(rgba(130, 218, 164, .075) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(130, 218, 164, .075) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at 30% 50%, #000 5%, transparent 70%);
+  animation: loginGridDrift 52s linear infinite;
+}
+
+.login-atmosphere::after {
+  position: absolute;
+  top: -25%;
+  bottom: -25%;
+  left: -35%;
+  width: 24%;
+  background: linear-gradient(90deg, transparent, rgba(144, 240, 178, .08), transparent);
+  content: "";
+  pointer-events: none;
+  transform: skewX(-18deg);
+  animation: loginLightSweep 24s ease-in-out infinite;
+}
+
+.login-orb {
+  position: absolute;
+  display: block;
+  width: clamp(210px, 28vw, 410px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(42px);
+  opacity: .16;
+  will-change: transform;
+  animation: loginOrbDrift 28s ease-in-out infinite alternate;
+}
+
+.login-orb-one {
+  top: -18%;
+  left: 9%;
+  background: radial-gradient(circle, #32a768 0%, rgba(50, 167, 104, .2) 45%, transparent 72%);
+}
+
+.login-orb-two {
+  right: 6%;
+  bottom: -28%;
+  background: radial-gradient(circle, #3e8a70 0%, rgba(62, 138, 112, .16) 48%, transparent 74%);
+  animation-delay: -10s;
+}
+
+.login-orb-three {
+  top: 24%;
+  right: 28%;
+  width: clamp(140px, 18vw, 250px);
+  opacity: .11;
+  background: radial-gradient(circle, #8297ed 0%, rgba(130, 151, 237, .12) 45%, transparent 75%);
+  animation-delay: -17s;
+}
+
+.login-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(164, 245, 193, .72);
+  box-shadow: 0 0 12px rgba(117, 229, 160, .42);
+  opacity: 0;
+  pointer-events: none;
+  animation: loginParticleDrift 13s ease-in-out var(--particle-delay, 0s) infinite;
+}
+
+.login-left,
+.login-right {
+  z-index: 1;
+}
+
+.login-left {
+  background: linear-gradient(135deg, rgba(18, 43, 32, .94), rgba(12, 35, 25, .97));
+}
+
+.login-right {
+  background: rgba(248, 251, 248, .78);
+}
+
+.brand-lockup .brand-mark {
+  transform-origin: center;
+}
+
+.login-copy h1 span {
+  display: inline-block;
+  margin-right: .18em;
+  will-change: transform, opacity;
+}
+
+.login-card {
+  position: relative;
+  isolation: isolate;
+  padding: 30px;
+  border: 1px solid rgba(57, 107, 75, .12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .76);
+  box-shadow: 0 24px 70px rgba(30, 63, 40, .1), inset 0 1px rgba(255, 255, 255, .82);
+  backdrop-filter: blur(22px) saturate(1.18);
+}
+
+.login-card::before {
+  position: absolute;
+  z-index: 0;
+  inset: -1px;
+  border: 1px solid rgba(104, 209, 145, .32);
+  border-radius: inherit;
+  content: "";
+  opacity: .42;
+  pointer-events: none;
+  animation: loginCardGlow 8s ease-in-out infinite;
+}
+
+.login-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.google-wrap {
+  transform-origin: center;
+  border-radius: 8px;
+  transition: box-shadow .2s ease, filter .2s ease;
+}
+
+.google-wrap:hover,
+.google-wrap:focus-within {
+  box-shadow: 0 8px 24px rgba(67, 153, 100, .16);
+  filter: brightness(1.025);
+}
+
+.google-wrap.is-busy {
+  opacity: .78;
+  pointer-events: none;
+}
+
+.google-verifying {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  margin-top: 10px;
+  color: var(--dx-accent);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.login-proof,
+.login-card,
+.profile-panel,
+.toast {
+  transition: background-color .22s ease, border-color .22s ease, box-shadow .22s ease;
+}
+
+.login-proof {
+  backdrop-filter: blur(8px);
+}
+
+.login-proof:hover {
+  border-color: rgba(135, 221, 165, .25);
+  background: rgba(255, 255, 255, .06);
+}
+
+.dropzone {
+  transform-origin: center;
+}
+
+.upload-processing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  margin: 12px 20px 0;
+  padding: 9px 12px;
+  border: 1px solid var(--dx-border);
+  border-radius: 8px;
+  color: var(--dx-muted);
+  background: var(--dx-surface-muted);
+  font-size: 10px;
+}
+
+.upload-processing svg {
+  flex: 0 0 auto;
+  color: var(--dx-accent);
+}
+
+.daywise-number {
+  display: inline-block;
+}
+
+@keyframes loginGridDrift {
+  to { background-position: 88px 88px; }
+}
+
+@keyframes loginLightSweep {
+  0%, 72%, 100% { left: -35%; opacity: 0; }
+  78% { opacity: .8; }
+  94% { left: 125%; opacity: 0; }
+}
+
+@keyframes loginOrbDrift {
+  from { transform: translate3d(-7px, 5px, 0) scale(.98); }
+  to { transform: translate3d(11px, -9px, 0) scale(1.025); }
+}
+
+@keyframes loginParticleDrift {
+  0%, 100% { opacity: 0; transform: translate3d(0, 8px, 0) scale(.75); }
+  20%, 74% { opacity: .62; }
+  50% { transform: translate3d(9px, -12px, 0) scale(1); }
+}
+
+@keyframes loginCardGlow {
+  0%, 100% { opacity: .28; }
+  50% { opacity: .62; }
+}
+
+:root[data-theme="dark"] .login-right {
+  background: rgba(12, 20, 16, .68);
+}
+
+:root[data-theme="dark"] .login-card {
+  border-color: rgba(143, 190, 157, .16);
+  background: rgba(16, 27, 21, .84);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .22), inset 0 1px rgba(255, 255, 255, .035);
+}
+
+:root[data-theme="dark"] .login-proof {
+  border-color: rgba(221, 247, 230, .14);
+  background: rgba(255, 255, 255, .045);
+}
+
+:root[data-theme="dark"] .login-orb { opacity: .2; }
+:root[data-theme="dark"] .login-orb-three { opacity: .14; }
+:root[data-theme="dark"] .ambient-pointer {
+  background: radial-gradient(circle, rgba(78, 192, 120, .1), rgba(42, 125, 77, .035) 40%, transparent 72%);
+}
+
+:root[data-theme="light"] .login-right {
+  background: linear-gradient(145deg, rgba(244, 248, 245, .88), rgba(237, 243, 238, .94));
+}
+
+:root[data-theme="light"] .login-card {
+  border-color: #dfe9e1;
+  background: rgba(255, 255, 255, .84);
+  box-shadow: 0 24px 65px rgba(30, 63, 40, .09), inset 0 1px #fff;
+}
+:root[data-theme="light"] .ambient-pointer {
+  background: radial-gradient(circle, rgba(67, 157, 99, .09), rgba(63, 144, 92, .025) 42%, transparent 72%);
+}
+
+:root[data-theme="light"] .login-card h2 { color: #203329; }
+:root[data-theme="light"] .login-card > p { color: #748178; }
+:root[data-theme="light"] .login-divider span { background: #dfe8e1; }
+:root[data-theme="light"] .login-divider small { color: #89978e; }
+:root[data-theme="light"] .login-note,
+:root[data-theme="light"] .login-footnote { color: #77867d; }
+:root[data-theme="light"] .login-proof { border-color: rgba(221, 247, 230, .18); }
+
+@media (max-width: 680px) {
+  .login-card { padding: 25px 20px; }
+  .login-orb { filter: blur(36px); }
+  .upload-processing { margin-right: 13px; margin-left: 13px; }
+}
+
+.ambient-pointer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(58vw, 680px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(75, 182, 112, .075), rgba(49, 130, 82, .025) 42%, transparent 72%);
+  opacity: .8;
+  pointer-events: none;
+  transform: translate3d(var(--pointer-x, 0px), var(--pointer-y, 0px), 0) translate(-50%, -50%);
+  transition: transform .8s cubic-bezier(.2, .8, .2, 1);
+  will-change: transform;
+}
+
+.login-atmosphere .ambient-pointer { width: min(68vw, 780px); }
+
+.motion-atmosphere .orb-a { animation-duration: 30s; }
+.motion-atmosphere .orb-b { animation-duration: 36s; }
+.motion-atmosphere .orb-c { animation-duration: 32s; }
+.motion-atmosphere .atmosphere-grid { animation-duration: 64s; opacity: .48; }
+.motion-atmosphere .ambient-pointer {
+  width: min(56vw, 620px);
+  opacity: .52;
+}
+
+:root[data-theme="dark"] .motion-atmosphere .atmosphere-grid {
+  opacity: .42;
+}
+
+:root[data-theme="light"] .motion-atmosphere .orb-a {
+  background: radial-gradient(circle, rgba(67, 157, 99, .1), rgba(67, 157, 99, .025) 44%, transparent 72%);
+}
+
+:root[data-theme="light"] .motion-atmosphere .orb-b {
+  background: radial-gradient(circle, rgba(110, 143, 196, .075), rgba(110, 143, 196, .018) 48%, transparent 72%);
+}
+
+:root[data-theme="light"] .motion-atmosphere .orb-c {
+  background: radial-gradient(circle, rgba(67, 157, 99, .07), transparent 70%);
+}
+
+:root[data-theme="light"] .motion-atmosphere .atmosphere-grid {
+  opacity: .24;
+}
+
+.stat-card-motion .stat-card {
+  position: relative;
+  overflow: hidden;
+  transform: none;
+  transition: border-color .24s ease, box-shadow .24s ease;
+}
+
+.stat-card-motion .stat-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.stat-card-motion .stat-card::after {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: linear-gradient(108deg, transparent 25%, rgba(255, 255, 255, .32) 48%, transparent 70%);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-115%);
+}
+
+.stat-card-motion:hover .stat-card {
+  border-color: rgba(74, 166, 109, .4);
+  box-shadow: 0 16px 36px rgba(35, 86, 54, .12);
+}
+
+.stat-card-motion:hover .stat-card::after {
+  opacity: .8;
+  transform: translateX(115%);
+  transition: transform .8s cubic-bezier(.2, .8, .2, 1), opacity .2s ease;
+}
+
+.daywise-fields[aria-busy="true"] { opacity: .72; }
+
+@media (max-width: 900px) {
+  .motion-atmosphere { left: 0; }
+  .ambient-pointer,
+  .login-particle { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-grid,
+  .login-atmosphere::after,
+  .login-orb,
+  .login-particle,
+  .login-card::before { animation: none; }
+  .login-orb { will-change: auto; }
+  .nav-icon,
+  .ambient-pointer,
+  .stat-card-motion .stat-card::after { transition: none; }
+}
