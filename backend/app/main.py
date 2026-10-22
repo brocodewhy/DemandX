@@ -5,6 +5,9 @@ import json
 import os
 import re
 import uuid
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Literal, Optional
@@ -96,22 +99,101 @@ def current_user(authorization: Optional[str] = Header(default=None)) -> dict:
 
 
 def user_root(user: dict) -> Path:
-    # Do not use email or user-supplied strings as filesystem paths.
-    key = hashlib.sha256(user["sub"].encode("utf-8")).hexdigest()[:32]
+    key = user_storage_key(user)
     root = STORAGE / key
     root.mkdir(parents=True, exist_ok=True)
     (root / "datasets").mkdir(exist_ok=True)
     return root
 
 
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "demandx-datasets").strip()
+
+
+def storage_configured() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and SUPABASE_BUCKET)
+
+
+def storage_request(method: str, object_path: str, body: bytes | None = None, content_type: str = "application/octet-stream"):
+    if not storage_configured():
+        raise HTTPException(status_code=503, detail="Persistent dataset storage is not configured. Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and SUPABASE_BUCKET in Vercel.")
+    path = urllib.parse.quote(object_path, safe="/")
+    url = f"{SUPABASE_URL}/storage/v1/object/{urllib.parse.quote(SUPABASE_BUCKET, safe='')}/{path}"
+    req = urllib.request.Request(url, data=body, method=method, headers={
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": content_type,
+        "x-upsert": "true",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=25) as response:
+            return response.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:300]
+        if exc.code == 404:
+            return None
+        raise HTTPException(status_code=502, detail=f"Supabase Storage request failed ({exc.code}): {detail}")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Could not connect to Supabase Storage: {str(exc)[:180]}")
+
+
+def storage_upload(object_path: str, content: bytes, content_type: str = "application/octet-stream"):
+    storage_request("POST", object_path, content, content_type)
+
+
+def storage_download(object_path: str):
+    return storage_request("GET", object_path)
+
+
+def storage_list(prefix: str) -> list[dict]:
+    if not storage_configured():
+        raise HTTPException(status_code=503, detail="Persistent dataset storage is not configured. Set Supabase environment variables in Vercel.")
+    url = f"{SUPABASE_URL}/storage/v1/object/list/{urllib.parse.quote(SUPABASE_BUCKET, safe='')}"
+    payload = json.dumps({"prefix": prefix.strip("/"), "limit": 1000, "offset": 0, "sortBy": {"column": "name", "order": "asc"}}).encode()
+    req = urllib.request.Request(url, data=payload, method="POST", headers={
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=25) as response:
+            result = json.loads(response.read().decode("utf-8"))
+            return result if isinstance(result, list) else []
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Could not list Supabase datasets: {str(exc)[:180]}")
+
+
+def user_storage_key(user: dict) -> str:
+    return hashlib.sha256(user["sub"].encode("utf-8")).hexdigest()[:32]
+
+
+def sync_dataset_to_storage(user: dict, dataset_id: str, root: Path):
+    prefix = f"{user_storage_key(user)}/datasets/{dataset_id}"
+    for name, mime in (("data.csv", "text/csv"), ("meta.json", "application/json")):
+        path = root / name
+        if path.exists():
+            storage_upload(f"{prefix}/{name}", path.read_bytes(), mime)
+
+
 def dataset_paths(user: dict, dataset_id: str):
     if not re.fullmatch(r"[a-f0-9-]{36}", dataset_id):
         raise HTTPException(status_code=400, detail="Invalid dataset ID.")
     root = user_root(user) / "datasets" / dataset_id
+    root.mkdir(parents=True, exist_ok=True)
     meta_path = root / "meta.json"
     data_path = root / "data.csv"
+    prefix = f"{user_storage_key(user)}/datasets/{dataset_id}"
+    if not meta_path.exists():
+        content = storage_download(f"{prefix}/meta.json")
+        if content is not None:
+            meta_path.write_bytes(content)
+    if not data_path.exists():
+        content = storage_download(f"{prefix}/data.csv")
+        if content is not None:
+            data_path.write_bytes(content)
     if not meta_path.exists() or not data_path.exists():
-        raise HTTPException(status_code=404, detail="Dataset not found. Upload it again if it was removed.")
+        raise HTTPException(status_code=404, detail="Dataset not found in your saved workspace. Please upload it again if it was deleted.")
     return root, meta_path, data_path
 
 
@@ -293,14 +375,26 @@ def update_me(request: ProfileUpdate, user=Depends(current_user)):
 
 @app.get("/api/datasets")
 def list_datasets(user=Depends(current_user)):
+    prefix = f"{user_storage_key(user)}/datasets"
+    folders = storage_list(prefix)
     items = []
-    for meta_path in (user_root(user) / "datasets").glob("*/meta.json"):
+    local_root = user_root(user) / "datasets"
+    dataset_ids = set()
+    for entry in folders:
+        name = str(entry.get("name", ""))
+        if re.fullmatch(r"[a-f0-9-]{36}", name):
+            dataset_ids.add(name)
+    if local_root.exists():
+        dataset_ids.update(p.name for p in local_root.iterdir() if p.is_dir() and re.fullmatch(r"[a-f0-9-]{36}", p.name))
+    for dataset_id in dataset_ids:
         try:
+            _, meta_path, _ = dataset_paths(user, dataset_id)
             meta = read_meta(meta_path)
             items.append({k: meta.get(k) for k in ["id", "filename", "rows", "columns_count", "created_at", "date_col", "target_col", "product_col"]})
         except Exception:
             continue
     return sorted(items, key=lambda x: x.get("created_at") or "", reverse=True)
+
 
 @app.post("/api/datasets")
 async def upload_dataset(file: UploadFile = File(...), user=Depends(current_user)):
@@ -328,6 +422,7 @@ async def upload_dataset(file: UploadFile = File(...), user=Depends(current_user
     saved.to_csv(root / "data.csv", index=False)
     meta = {"id": dataset_id, "filename": Path(filename).name, "rows": int(len(df)), "columns_count": int(len(df.columns)), "columns": [str(c) for c in df.columns], "created_at": datetime.utcnow().isoformat() + "Z", **detected}
     (root / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    sync_dataset_to_storage(user, dataset_id, root)
     return {**meta, "preview": records(df, 8), "missing_cells": int(df.isna().sum().sum()), "duplicate_rows": int(df.duplicated().sum()), "numeric_columns": [str(c) for c in df.select_dtypes(include=np.number).columns], "message": "Dataset uploaded and saved to your workspace."}
 
 @app.get("/api/datasets/{dataset_id}")
@@ -357,6 +452,7 @@ def clean(dataset_id: str, request: CleanRequest, user=Depends(current_user)):
     cleaned.to_csv(root / "data.csv", index=False)
     meta.update({"rows": int(len(cleaned)), "columns_count": int(len(cleaned.columns)), "date_col": request.date_col, "target_col": request.target_col, "cleaned_at": datetime.utcnow().isoformat() + "Z"})
     (root / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    sync_dataset_to_storage(user, dataset_id, root)
     return {"report": report, "preview": records(cleaned, 12), "rows": len(cleaned), "message": "Cleaning completed and saved to this dataset."}
 
 @app.get("/api/datasets/{dataset_id}/download")
