@@ -250,24 +250,31 @@ function BrandIntroScreen({ label = 'Preparing your workspace' }) {
   );
 }
 
-function WelcomeToDemandX({ user, onFinish }) {
+function WelcomeToDemandX({ onFinish }) {
   const reduceMotion = useReducedMotion();
   useEffect(() => {
-    const timeout = window.setTimeout(onFinish, reduceMotion ? 1200 : 4800);
+    // Let the wordmark breathe on screen, then fade away automatically.
+    const timeout = window.setTimeout(onFinish, reduceMotion ? 1500 : 4200);
     return () => window.clearTimeout(timeout);
   }, [onFinish, reduceMotion]);
   return (
-    <motion.div className="dx-welcome-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 1.035, filter: 'blur(8px)' }} transition={{ duration: reduceMotion ? .15 : .65, ease: motionEase }} role="dialog" aria-label="Welcome to DemandX">
-      <motion.div className="dx-welcome-grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: .2, duration: 1.1 }} />
+    <motion.div
+      className="dx-welcome-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, scale: reduceMotion ? 1 : 1.045, filter: reduceMotion ? 'blur(0px)' : 'blur(12px)' }}
+      transition={{ duration: reduceMotion ? .2 : .72, ease: motionEase }}
+      role="status"
+      aria-label="Welcome to DemandX"
+    >
       <div className="dx-welcome-orbit dx-welcome-orbit-one" />
       <div className="dx-welcome-orbit dx-welcome-orbit-two" />
-      <motion.div className="dx-welcome-stage" initial={{ opacity: 0, scale: .45, filter: 'blur(18px)' }} animate={{ opacity: [0, 1, 1, 0], scale: reduceMotion ? [1, 1, 1, 1] : [.28, 1.12, 1, 1.24], filter: ['blur(24px)', 'blur(0px)', 'blur(0px)', 'blur(10px)'] }} transition={{ duration: reduceMotion ? 1.1 : 4.8, times: [0, .28, .76, 1], ease: 'easeInOut' }}>
-        <motion.div className="dx-welcome-kicker" initial={{ opacity: 0, letterSpacing: '.45em', y: 12 }} animate={{ opacity: [0, 1, 1, 0], letterSpacing: ['.45em', '.2em', '.2em', '.12em'], y: [12, 0, 0, -8] }} transition={{ duration: 4.1, times: [0, .3, .75, 1] }}>YOUR DEMAND INTELLIGENCE WORKSPACE</motion.div>
-        <motion.h1 initial={{ opacity: 0, y: 35, scale: .8 }} animate={{ opacity: [0, 1, 1, 0], y: [48, 0, 0, -30], scale: [.72, 1.08, 1, 1.14], filter: ['blur(12px)', 'blur(0px)', 'blur(0px)', 'blur(5px)'] }} transition={{ delay: .35, duration: 4.15, times: [0, .32, .76, 1], ease: motionEase }}>Welcome to <span>DemandX</span></motion.h1>
-        <motion.p initial={{ opacity: 0, y: 12 }} animate={{ opacity: [0, 1, 1, 0], y: [12, 0, 0, -10] }} transition={{ delay: .45, duration: 3.8, times: [0, .25, .72, 1] }}>{user?.name ? `Great to have you here, ${user.name.split(' ')[0]}.` : 'Your demand planning workspace is ready.'}</motion.p>
-        <motion.div className="dx-welcome-chips" initial={{ opacity: 0, y: 18 }} animate={{ opacity: [0, 1, 1, 0], y: [18, 0, 0, -8] }} transition={{ delay: .65, duration: 3.5, times: [0, .25, .72, 1] }}><span>Order insights</span><span>Smart forecasts</span><span>Better decisions</span></motion.div>
-      </motion.div>
-      <motion.button className="dx-welcome-skip" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }} onClick={onFinish}>Enter workspace <span>→</span></motion.button>
+      <motion.h1
+        className="dx-welcome-only-title"
+        initial={{ opacity: 0, scale: reduceMotion ? 1 : .42, filter: reduceMotion ? 'blur(0px)' : 'blur(22px)' }}
+        animate={{ opacity: [0, 1, 1, 0], scale: reduceMotion ? [1, 1, 1, 1] : [.42, 1.12, 1, 1.18], filter: ['blur(22px)', 'blur(0px)', 'blur(0px)', 'blur(8px)'] }}
+        transition={{ duration: reduceMotion ? 1.2 : 4.15, times: [0, .25, .76, 1], ease: 'easeInOut' }}
+      >Welcome to <span>DemandX</span></motion.h1>
     </motion.div>
   );
 }
@@ -385,7 +392,7 @@ function App() {
     <AnimatePresence>
       {initializing && <BrandIntroScreen key="app-splash" label={auth.loading ? 'Restoring your secure session' : 'Preparing your workspace'}/>}
     </AnimatePresence>
-    <AnimatePresence>{!initializing && auth.user && showWelcome && <WelcomeToDemandX key="dx-welcome" user={auth.user} onFinish={finishWelcome}/>}</AnimatePresence>
+    <AnimatePresence>{!initializing && auth.user && showWelcome && <WelcomeToDemandX key="dx-welcome" onFinish={finishWelcome}/>}</AnimatePresence>
     {!initializing && (auth.user ? <div className="app-shell">
     <AmbientBackground/>
     <Sidebar page={page} setPage={setPage} user={auth.user} signOut={auth.signOut} open={sidebarOpen} close={() => setSidebarOpen(false)} />
@@ -398,7 +405,7 @@ function App() {
       <main className="page-content"><div className="page-stack">
         {visitedPages.map(pageId => {
           const active = pageId === page;
-          return <motion.div key={pageId} className="page-route" initial={{ opacity: 0, y: 8, scale: .995 }} animate={active ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: -4, scale: .998 }} transition={{ duration: 0.28, ease: motionEase }} style={{ position: active ? 'relative' : 'absolute', inset: active ? 'auto' : 0, width: '100%', pointerEvents: active ? 'auto' : 'none', zIndex: active ? 1 : 0 }} aria-hidden={!active} inert={!active}>
+          return <motion.div key={pageId} className="page-route" initial={{ opacity: 0, y: 24, scale: .975, filter: 'blur(8px)', rotateX: 1.2 }} animate={active ? { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', rotateX: 0 } : { opacity: 0, y: -14, scale: .985, filter: 'blur(5px)', rotateX: -.7 }} transition={{ duration: 0.48, ease: motionEase }} style={{ position: active ? 'relative' : 'absolute', inset: active ? 'auto' : 0, width: '100%', pointerEvents: active ? 'auto' : 'none', zIndex: active ? 1 : 0, transformOrigin: 'top center', perspective: 1200 }} aria-hidden={!active} inert={!active}>
             {renderPage(pageId)}
           </motion.div>;
         })}
