@@ -253,21 +253,22 @@ function BrandIntroScreen({ label = 'Preparing your workspace' }) {
 function WelcomeToDemandX({ user, onFinish }) {
   const reduceMotion = useReducedMotion();
   useEffect(() => {
-    const timeout = window.setTimeout(onFinish, reduceMotion ? 900 : 3100);
+    const timeout = window.setTimeout(onFinish, reduceMotion ? 1200 : 4800);
     return () => window.clearTimeout(timeout);
   }, [onFinish, reduceMotion]);
   return (
-    <motion.div className="dx-welcome-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.35 }} onClick={onFinish} role="dialog" aria-label="Welcome to DemandX">
-      <div className="dx-welcome-grid" />
-      <motion.div className="dx-welcome-card" initial={{ opacity: 0, y: 16, scale: 0.72, filter: 'blur(12px)' }} animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }} transition={{ duration: 0.9, ease: motionEase }}>
-        <motion.div className="dx-welcome-icon" initial={{ scale: 0.5, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.15, type: 'spring', stiffness: 180, damping: 12 }}>D<span>X</span></motion.div>
-        <div className="dx-welcome-kicker">YOUR DEMAND INTELLIGENCE WORKSPACE</div>
-        <h1>Welcome to <span>DemandX</span></h1>
-        <p>{user?.name ? `Great to have you here, ${user.name.split(' ')[0]}.` : 'Your next-level demand planning workspace is ready.'}</p>
-        <div className="dx-welcome-chips"><span>Order insights</span><span>Smart forecasts</span><span>Better decisions</span></div>
-        <div className="dx-welcome-progress"><span /></div>
-        <button className="dx-welcome-skip" onClick={(event) => { event.stopPropagation(); onFinish(); }}>Enter workspace <span>→</span></button>
+    <motion.div className="dx-welcome-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 1.035, filter: 'blur(8px)' }} transition={{ duration: reduceMotion ? .15 : .65, ease: motionEase }} role="dialog" aria-label="Welcome to DemandX">
+      <motion.div className="dx-welcome-grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: .2, duration: 1.1 }} />
+      <div className="dx-welcome-orbit dx-welcome-orbit-one" />
+      <div className="dx-welcome-orbit dx-welcome-orbit-two" />
+      <motion.div className="dx-welcome-stage" initial={{ opacity: 0, scale: .45, filter: 'blur(18px)' }} animate={{ opacity: [0, 1, 1, 0], scale: reduceMotion ? [1, 1, 1, 1] : [.45, 1.08, 1, 1.12], filter: ['blur(18px)', 'blur(0px)', 'blur(0px)', 'blur(5px)'] }} transition={{ duration: reduceMotion ? 1.1 : 4.45, times: [0, .24, .72, 1], ease: 'easeInOut' }}>
+        <motion.div className="dx-welcome-icon" initial={{ scale: .25, rotate: -28 }} animate={{ scale: [ .25, 1.12, 1, 1.3 ], rotate: [-28, 5, 0, 0] }} transition={{ duration: reduceMotion ? .3 : 2.1, times: [0, .48, .72, 1], ease: 'easeOut' }}>D<span>X</span></motion.div>
+        <motion.div className="dx-welcome-kicker" initial={{ opacity: 0, letterSpacing: '.45em', y: 12 }} animate={{ opacity: [0, 1, 1, 0], letterSpacing: ['.45em', '.2em', '.2em', '.12em'], y: [12, 0, 0, -8] }} transition={{ duration: 4.1, times: [0, .3, .75, 1] }}>YOUR DEMAND INTELLIGENCE WORKSPACE</motion.div>
+        <motion.h1 initial={{ opacity: 0, y: 35, scale: .8 }} animate={{ opacity: [0, 1, 1, 0], y: [35, 0, 0, -22], scale: [.8, 1.04, 1, 1.08] }} transition={{ duration: 4.3, times: [0, .34, .75, 1], ease: motionEase }}>Welcome to <span>DemandX</span></motion.h1>
+        <motion.p initial={{ opacity: 0, y: 12 }} animate={{ opacity: [0, 1, 1, 0], y: [12, 0, 0, -10] }} transition={{ delay: .45, duration: 3.8, times: [0, .25, .72, 1] }}>{user?.name ? `Great to have you here, ${user.name.split(' ')[0]}.` : 'Your demand planning workspace is ready.'}</motion.p>
+        <motion.div className="dx-welcome-chips" initial={{ opacity: 0, y: 18 }} animate={{ opacity: [0, 1, 1, 0], y: [18, 0, 0, -8] }} transition={{ delay: .65, duration: 3.5, times: [0, .25, .72, 1] }}><span>Order insights</span><span>Smart forecasts</span><span>Better decisions</span></motion.div>
       </motion.div>
+      <motion.button className="dx-welcome-skip" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }} onClick={onFinish}>Enter workspace <span>→</span></motion.button>
     </motion.div>
   );
 }
